@@ -8,6 +8,17 @@ namespace AutoPara
 {
     public class ParaUtil
     {
+        /*
+         目的：
+         自动生成相应类型的随机数，以便用于测试接口。
+         方法：
+         1.根据单个类型生成随机值。（OK，进一步思考：如果写个万能的类型值随机生成器？）
+         2.根据实体类生成对应属性类型的随机值。（半OK，进一步思考：如果根据需要生成某些有效的数据以进行下一步的测试）
+
+             
+             */
+
+
         #region 随机获取常用类型值
 
 
@@ -226,7 +237,7 @@ namespace AutoPara
 
                 if (IsNullableType(oneType))
                 {
-                    if (!GetBoolean())
+                    if (!GetBoolean()&& !isGetOkData)
                     {
                         //对于可空类型，随机给空值
                         continue;
@@ -234,9 +245,9 @@ namespace AutoPara
                     oneType = property.PropertyType.GetGenericArguments()[0];
                 }
                 if (isGetOkData)
-                {
+                {//要求要有效的数据
 
-                    var paraValue = GetValueBySLAttribute(property);
+                    var paraValue = GetValueByAttribute(property);
                     if (paraValue != null)
                     {
 
@@ -244,7 +255,7 @@ namespace AutoPara
                         continue;
                     }
                 }
-                if (!oneType.IsValueType)
+                if (!oneType.IsValueType&&!isGetOkData)
                 {
                     if (!GetBoolean())
                     {
@@ -260,36 +271,75 @@ namespace AutoPara
 
 
         /// <summary>
-        /// 根据有标识长度限制的特性来生成对应的值
+        /// 根据特性来生成对应的值
         /// </summary>
         /// <param name="property"></param>
         /// <returns></returns>
-        private static string GetValueBySLAttribute(PropertyInfo property)
+        private static object GetValueByAttribute(PropertyInfo property)
         {
             var allAttribute = property.GetCustomAttributes(true);
             if (allAttribute == null)
             {
                 return null;
             }
+            //必需的
+            var isRequir = false;
+            //长度限制特性
+            StringLengthAttribute stringLengthAttribute = null;
+
             foreach (var item in allAttribute)
             {
                 if (item is StringLengthAttribute)
                 {
                     var slAttribute = item as StringLengthAttribute;
+                    stringLengthAttribute = slAttribute;
 
-                    var paraVal = GetString(slAttribute.MaximumLength);
-                    bool isok = false;
-                    while (!isok)
-                    {
-                        paraVal = GetString(slAttribute.MaximumLength);
-                        isok = ValidValue(slAttribute, paraVal);
-                    }
-                    return paraVal;
-
+                }
+                if (item is RequiredAttribute)
+                {
+                    isRequir = true;
                 }
             }
 
-            return null;
+            bool isok = false;
+            object paraVal = null;
+            if (stringLengthAttribute == null)
+            {
+                if (isRequir)
+                {//没有限定最大长度，且不能为空
+                    var type = property.PropertyType;
+                    if (IsNullableType(type))
+                    {
+                        type = property.PropertyType.GetGenericArguments()[0];
+                    }
+                    while (!isok)
+                    {
+                        paraVal = GetValueByType(type);
+                        isok = paraVal != null;
+                    }
+                    return paraVal;
+                }
+
+                return GetValueByType(property.PropertyType);
+            }
+
+            while (!isok)
+            {
+                string paraValStr = GetString(stringLengthAttribute.MaximumLength);
+                isok = ValidValue(stringLengthAttribute, paraValStr as string);
+                if (isRequir)
+                {
+                    if (string.IsNullOrEmpty(paraValStr))
+                    {
+                        isok = false;
+                    }
+                }
+                if (isok)
+                {
+                    paraVal = paraValStr;
+                }
+            }
+            return paraVal;
         }
 
         /// <summary>
@@ -315,8 +365,18 @@ namespace AutoPara
               (typeof(Nullable<>)));
         }
 
-        private static object GetValueByType(Type paraType, int maxSize = 0)
+        private static object GetValueByType(Type paraInType, int maxSize = 0)
         {
+            Type paraType = paraInType;
+            if (IsNullableType(paraInType))
+            {
+                if (GetBoolean())
+                {
+                    return null;
+                }
+                paraType = paraInType.GetGenericArguments()[0];
+            }
+
             if (paraType == typeof(string))
             {
                 if (maxSize > 0)
