@@ -237,7 +237,7 @@ namespace AutoPara
 
                 if (IsNullableType(oneType))
                 {
-                    if (!GetBoolean()&& !isGetOkData)
+                    if (!GetBoolean() && !isGetOkData)
                     {
                         //对于可空类型，随机给空值
                         continue;
@@ -255,7 +255,7 @@ namespace AutoPara
                         continue;
                     }
                 }
-                if (!oneType.IsValueType&&!isGetOkData)
+                if (!oneType.IsValueType && !isGetOkData)
                 {
                     if (!GetBoolean())
                     {
@@ -326,6 +326,10 @@ namespace AutoPara
             while (!isok)
             {
                 string paraValStr = GetString(stringLengthAttribute.MaximumLength);
+                if (paraValStr.Length < stringLengthAttribute.MinimumLength)
+                {
+                    continue;
+                }
                 isok = ValidValue(stringLengthAttribute, paraValStr as string);
                 if (isRequir)
                 {
