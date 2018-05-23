@@ -233,6 +233,8 @@ namespace AutoPara
 
             foreach (PropertyInfo property in properties)
             {
+                if (!property.CanWrite) continue;//该属性不可写，直接跳出  
+
                 Type oneType = property.PropertyType;
 
                 if (IsNullableType(oneType))
