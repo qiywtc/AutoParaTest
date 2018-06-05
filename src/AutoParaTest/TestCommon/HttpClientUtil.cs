@@ -1,10 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Reflection;
 using System.Text;
 
-namespace AutoPara
+namespace TestCommon
 {
     public static class HttpClientUtil
     {
@@ -28,7 +29,8 @@ namespace AutoPara
                     continue;
 
                 }
-                var content = new StringContent(((string)item.GetValue(model).ToString()));
+                var content = new StringContent(item.GetValue(model).ToString());
+
                 formData.Add(content, item.Name);
 
             }
@@ -58,11 +60,19 @@ namespace AutoPara
         }
 
 
-        public static string PostData<T>(this HttpClient client, string url, T model)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="client"></param>
+        /// <param name="url"></param>
+        /// <param name="model"></param>
+        /// <param name="isJson">是否使用json的方式提交（api用了参数[FromBody]修饰后，必须用此方法方可提交成功）</param>
+        /// <returns></returns>
+        public static string PostData<T>(this HttpClient client, string url, T model,bool isJson=false) where T : class
         {
 
-            client.MaxResponseContentBufferSize = int.MaxValue;
-            client.DefaultRequestHeaders.Add("user-agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/36.0.1985.143 Safari/537.36");
+            client.InitClient();
 
             MultipartFormDataContent postModelData;
             if (typeof(T) == typeof(Dictionary<string, string>))
@@ -71,21 +81,31 @@ namespace AutoPara
             }
             else
             {
-                postModelData = HttpClientUtil.GetPostModelData<T>(model);
+                postModelData = GetPostModelData<T>(model);
             }
+            if(isJson)
+            {
+                HttpContent httpContent = new StringContent(model.ToJson());
+                httpContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+                var responseJson = client.PostAsync(url, httpContent).Result;
+                return responseJson.Content.ReadAsStringAsync().Result;
+            }
+
             var response = client.PostAsync(url, postModelData).Result;
             return response.Content.ReadAsStringAsync().Result;
 
         }
 
+
+
         public static string GetData(this HttpClient client, string url, Dictionary<string, string> formData = null)
         {
 
-            client.MaxResponseContentBufferSize = int.MaxValue;
-            client.DefaultRequestHeaders.Add("user-agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/36.0.1985.143 Safari/537.36");
+            client.InitClient();
             if (formData == null || formData.Count <= 0)
             {
-                return client.GetAsync(url).Result.Content.ReadAsStringAsync().Result;
+                var resu = client.GetAsync(url).Result;
+                return resu.Content.ReadAsStringAsync().Result;
             }
 
             var paraData = formData.GetQueryString();
@@ -106,8 +126,7 @@ namespace AutoPara
         public static string PutData<T>(this HttpClient client, string url, T model)
         {
 
-            client.MaxResponseContentBufferSize = int.MaxValue;
-            client.DefaultRequestHeaders.Add("user-agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/36.0.1985.143 Safari/537.36");
+            client.InitClient();
 
             var postModelData = HttpClientUtil.GetPostModelData<T>(model);
             var response = client.PutAsync(url, postModelData).Result;
@@ -119,8 +138,8 @@ namespace AutoPara
         public static string DeleteData(this HttpClient client, string url, Dictionary<string, string> formData)
         {
 
-            client.MaxResponseContentBufferSize = int.MaxValue;
-            client.DefaultRequestHeaders.Add("user-agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/36.0.1985.143 Safari/537.36");
+            client.InitClient();
+
             if (formData == null || formData.Count <= 0)
             {
                 return client.GetAsync(url).Result.Content.ReadAsStringAsync().Result;
@@ -133,6 +152,13 @@ namespace AutoPara
 
         }
 
+        private static void InitClient(this HttpClient client)
+        {
+            client.MaxResponseContentBufferSize = int.MaxValue;
+            client.DefaultRequestHeaders.Add("user-agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/36.0.1985.143 Safari/537.36");
+
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        }
 
         /// <summary>
         /// 组装QueryString的方法
@@ -185,7 +211,7 @@ namespace AutoPara
         }
 
 
-        
+
 
 
     }
