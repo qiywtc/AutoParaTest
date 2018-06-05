@@ -5,3 +5,5 @@
 /src/AutoParaTest/TestWebApi/bin
 /src/AutoParaTest/WebApiTest/bin
 /src/AutoParaTest/WebApiTest/obj
+/src/AutoParaTest/TestCommon/bin/Debug
+/src/AutoParaTest/TestCommon/obj
