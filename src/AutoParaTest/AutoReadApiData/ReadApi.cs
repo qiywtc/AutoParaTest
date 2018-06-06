@@ -13,11 +13,15 @@ namespace AutoReadApiData
     {
         public static ResultModel GetApiData<T>()
         {
-            var result = new ResultModel();
-
 
             //获取传入类型所在程序集下，所有定义的类
-            Type[] types = typeof(T).Assembly.GetTypes();
+            return GetApiData(typeof(T).Assembly.GetTypes());
+        }
+
+        public static ResultModel GetApiData(Type[] types)
+        {
+            var result = new ResultModel();
+
             //获取本程序集中所有定义的类  
             //Type[] types = Assembly.GetExecutingAssembly().GetTypes();
 
@@ -104,7 +108,6 @@ namespace AutoReadApiData
                 GetParaList(oneMethod, methods[j]);
 
                 oneMethod.HttpType = HttpState.Get;
-                oneMethod.RouteUrl = methods[j].Name;
 
 
                 var attributes = methods[j].GetCustomAttributes();
@@ -187,8 +190,19 @@ namespace AutoReadApiData
  parameters[k].ParameterType.Name
 "UserModel"
 */
-                onePara.ParaTypeName = parameters[k].ParameterType.Name;
+
+                var oneType = parameters[k].ParameterType;
+                onePara.ParaTypeName = oneType.Name;
+                if ((oneType.IsGenericType && oneType.GetGenericTypeDefinition().Equals(typeof(Nullable<>))))
+                {
+
+                    oneType = oneType.GetGenericArguments()[0];
+                    onePara.ParaTypeName = oneType.Name + "?";
+                }
+
                 onePara.ParaName = parameters[k].Name;
+
+
                 //方法位置
                 onePara.ParaPosition = parameters[k].Position;
 
@@ -212,50 +226,14 @@ namespace AutoReadApiData
                 return;
             }
 
-
-            /*
-             一开始用controllerType.Assembly.Location，的IIS Express  下获取到的不是正确的目录，所以改为CodeBase
-             */
-            //		CodeBase"file:///H:/CollegeLife/CollegeLife.WebApi/bin/CollegeLife.WebApi.DLL"
-            var codeBase = controllerType.Assembly.CodeBase;
-            codeBase = codeBase.Replace("file:///", "");
-
-            var binNum = codeBase.LastIndexOf("bin");
-            if (binNum <= 0)
+            var rightPath = GetRightPath(controllerType);
+            if (string.IsNullOrEmpty(rightPath))
             {
-                return;
-            }
-
-            //获取未编译文件路径
-            var classPath = codeBase.Substring(0, binNum);
-
-            // = classPath + @"Controllers\" + controllerType.Name + ".cs";
-            //先根据命名空间来找到这个类
-            var oneFilePath = classPath + controllerType.FullName.Substring(controllerType.FullName.IndexOf(".") + 1).Replace(".", "\\") + ".cs";
-
-            if (!File.Exists(oneFilePath))
-            {
-                /*这里应该再加上，返回再上一层目录的操作，因为可能是跟此项目同级的Models层*/
-
-                //找不到，就只能靠搜索了
-                DirectoryInfo dir = new DirectoryInfo(classPath);
-                foreach (FileInfo file in dir.GetFiles(controllerType.Name + ".cs", SearchOption.AllDirectories))//第二个参数表示搜索包含子目录中的文件；
-                {
-
-                    /*这里可能改成每个都获取一下，然后再判断里面的命名空间与类名是否对应得上，对得上就说明是这个文件*/
-                    oneFilePath = file.FullName;//这里是只用搜索到的最后一个文件来使用
-                }
-            }
-
-
-            if (string.IsNullOrEmpty(oneFilePath))
-            {
-                //找不到此文件
                 return;
             }
 
             List<string> strList = new List<string>();
-            using (FileStream fs = new FileStream(oneFilePath, FileMode.Open, FileAccess.Read))
+            using (FileStream fs = new FileStream(rightPath, FileMode.Open, FileAccess.Read))
             {
 
                 using (StreamReader m_streamReader = new StreamReader(fs))
@@ -300,6 +278,74 @@ namespace AutoReadApiData
         }
 
         /// <summary>
+        /// 获取正确的文件所有路径
+        /// </summary>
+        /// <param name="controllerType"></param>
+        /// <returns></returns>
+        private static string GetRightPath(Type controllerType)
+        {
+
+            /*
+             一开始用controllerType.Assembly.Location，的IIS Express  下获取到的不是正确的目录，所以改为CodeBase
+             */
+            //		CodeBase"file:///H:/CollegeLife/CollegeLife.WebApi/bin/CollegeLife.WebApi.DLL"
+            var codeBase = controllerType.Assembly.CodeBase;
+            codeBase = codeBase.Replace("file:///", "");
+
+            var binNum = codeBase.LastIndexOf("bin");
+            if (binNum <= 0)
+            {
+                return null;
+            }
+
+            //获取未编译文件路径
+            codeBase = codeBase.Substring(0, binNum);
+
+
+            var classPath = controllerType.FullName.Substring(controllerType.FullName.IndexOf(".") + 1).Replace(".", "/") + ".cs";
+            // = classPath + @"Controllers\" + controllerType.Name + ".cs";
+            //先根据命名空间来找到这个类
+            var oneFilePath = codeBase + classPath;
+
+            if (File.Exists(oneFilePath))
+            {
+                return oneFilePath;
+            }
+            var dllName = controllerType.Module.Name.Replace(".dll", "");
+            oneFilePath = oneFilePath.Replace(dllName.Replace(".", "/"), dllName);
+            if (File.Exists(oneFilePath))
+            {
+                return oneFilePath;
+            }
+
+            //找不到，就只能靠搜索了
+            DirectoryInfo dir = new DirectoryInfo(codeBase);
+            foreach (FileInfo file in dir.GetFiles(controllerType.Name + ".cs", SearchOption.AllDirectories))//第二个参数表示搜索包含子目录中的文件；
+            {
+                /*这里可能改成每个都获取一下，然后再判断里面的命名空间与类名是否对应得上，对得上就说明是这个文件*/
+                oneFilePath = file.FullName;//这里是只用搜索到的最后一个文件来使用
+                return oneFilePath;
+            }
+            /*这里应该再加上，返回再上一层目录的操作，因为可能是跟此项目同级的Models层*/
+
+            var lastPath = codeBase.Remove(codeBase.Length - 1).LastIndexOf("/");
+            codeBase = codeBase.Remove(lastPath + 1);
+            classPath = classPath.Remove(0, classPath.IndexOf("Controllers") - 1);
+
+            oneFilePath = codeBase + dllName + classPath;
+            if (File.Exists(oneFilePath))
+            {
+                return oneFilePath;
+            }
+            oneFilePath = oneFilePath.Replace(dllName.Replace(".", "/"), dllName);
+            if (File.Exists(oneFilePath))
+            {
+                return oneFilePath;
+            }
+            return null;
+        }
+
+        /// <summary>
         /// 获取注释信息
         /// </summary>
         /// <param name="methodNameStr">方法或类名那一行数据</param>
@@ -311,11 +357,11 @@ namespace AutoReadApiData
             {
                 return;
             }
-            if (methodNameStr.IndexOf("<") >= 0)
-            {
-                //webapi没有泛型接口
-                return;
-            }
+            //if (methodNameStr.IndexOf("<") >= 0)
+            //{
+            //    //webapi没有泛型接口
+            //    return;
+            //}
 
             allAnnotation = allAnnotation.Replace(" ", "");
 
@@ -406,7 +452,7 @@ namespace AutoReadApiData
                     for (int b = 0; b < paraArray.Length; b++)
                     {
                         //因为参数类型与参数名是以空格分离的
-                        var oneParaArray = paraArray[b].Split(' ');
+                        var oneParaArray = paraArray[b].Trim().Split(' ');
                         if (oneParaArray == null)
                         {
                             continue;
@@ -622,10 +668,19 @@ namespace AutoReadApiData
                 var onePara = new ParaData();
 
                 onePara.ParaName = item.Name;
-                onePara.ParaTypeName = item.PropertyType.Name;
+                var oneType = item.PropertyType;
+                onePara.ParaTypeName = oneType.Name;
+                if ((oneType.IsGenericType && oneType.GetGenericTypeDefinition().Equals(typeof(Nullable<>))))
+                {
+
+                    oneType = oneType.GetGenericArguments()[0];
+                    onePara.ParaTypeName = oneType.Name + "?";
+                }
+
+
                 onePara.ParaPosition = i;
 
-                GetParaTypeInfo(item.PropertyType, onePara);
+                GetParaTypeInfo(oneType, onePara);
 
                 /*这里应该再加上，去那个类文件，找到对应的类注释的方法*/
                 paraData.SubseriesList.Add(onePara);
