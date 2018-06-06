@@ -195,18 +195,18 @@ namespace AutoReadApiData
                 onePara.ParaTypeName = oneType.Name;
                 if ((oneType.IsGenericType && oneType.GetGenericTypeDefinition().Equals(typeof(Nullable<>))))
                 {
-
+                    
                     oneType = oneType.GetGenericArguments()[0];
-                    onePara.ParaTypeName = oneType.Name + "?";
+                    onePara.ParaTypeName = oneType.Name+"?";
                 }
 
                 onePara.ParaName = parameters[k].Name;
-
+                
 
                 //方法位置
                 onePara.ParaPosition = parameters[k].Position;
 
-                GetParaTypeInfo(parameters[k].ParameterType, onePara);
+                GetParaTypeInfo(oneType, onePara);
 
                 oneMethod.ParaList.Add(onePara);
             }
@@ -330,9 +330,9 @@ namespace AutoReadApiData
 
             var lastPath = codeBase.Remove(codeBase.Length - 1).LastIndexOf("/");
             codeBase = codeBase.Remove(lastPath + 1);
-            classPath = classPath.Remove(0, classPath.IndexOf("Controllers") - 1);
+            classPath = classPath.Remove(0, classPath.IndexOf("Controllers")-1);
 
-            oneFilePath = codeBase + dllName + classPath;
+            oneFilePath = codeBase + dllName+classPath;
             if (File.Exists(oneFilePath))
             {
                 return oneFilePath;
@@ -457,13 +457,13 @@ namespace AutoReadApiData
                         {
                             continue;
                         }
-                        if (oneParaArray.Length <= 0)
+                        if (oneParaArray.Length <= 1)
                         {
                             continue;
                         }
 
                         //类型不会因大小写而不同，所以直接都转为小写来比较
-                        if (oneMethod.ParaList[b].ParaTypeName.ToLower() == oneParaArray[0].ToLower())
+                        if (oneMethod.ParaList[b].ParaName.ToLower() == oneParaArray[1].ToLower())
                         {
                             okParaNum++;
                         }
